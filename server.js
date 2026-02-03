@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 // Import database setup
-const { initializeDatabase, query } = require('./setup');  // ← CHANGED FROM ./src/database/setup
+const { setupDatabase, query } = require('./setup');
 
 // Import routes
 const authRoutes = require('./auth');  // ← CHANGED FROM ./src/routes/auth
