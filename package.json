@@ -1,0 +1,52 @@
+{
+  "name": "tradoor-tech-backend",
+  "version": "1.0.0",
+  "description": "Tradoor Tech - Professional Solana memecoin trading bot with auto-snipe, rug detection, and copy trading",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "echo 'No build step required'",
+    "migrate": "node scripts/migrate.js"
+  },
+  "keywords": [
+    "solana",
+    "memecoin",
+    "sniper",
+    "trading",
+    "bot",
+    "pump.fun",
+    "raydium"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.87.6",
+    "@solana/spl-token": "^0.3.9",
+    "@coral-xyz/anchor": "^0.29.0",
+    "@project-serum/serum": "^0.13.65",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "ws": "^8.14.2",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2",
+    "bs58": "^5.0.0",
+    "tweetnacl": "^1.0.3",
+    "bignumber.js": "^9.1.2",
+    "uuid": "^9.0.1",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "stripe": "^14.7.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solana Sniper Bot - Login with Twitter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@privy-io/react-auth@latest/dist/index.umd.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen">
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { PrivyProvider, usePrivy, useWallets } = window['@privy-io/react-auth'];
+    const { useState, useEffect } = React;
+
+    // IMPORTANT: Replace with your actual values
+    const PRIVY_APP_ID = 'YOUR_PRIVY_APP_ID'; // Get from https://privy.io
+    const API_URL = 'https://your-app.up.railway.app'; // Your Railway URL
+
+    function App() {
+      return (
+        <PrivyProvider
+          appId={PRIVY_APP_ID}
+          config={{
+            loginMethods: ['twitter', 'wallet', 'email'],
+            appearance: {
+              theme: 'dark',
+              accentColor: '#9333EA',
+              logo: 'https://your-logo-url.com/logo.png'
+            },
+            embeddedWallets: {
+              createOnLogin: 'all-users'
+            }
+          }}
+        >
+          <Dashboard />
+        </PrivyProvider>
+      );
+    }
+
+    function Dashboard() {
+      const { 
+        ready, 
+        authenticated, 
+        user, 
+        login, 
+        logout,
+        linkTwitter,
+        unlinkTwitter
+      } = usePrivy();
+      
+      const { wallets } = useWallets();
+      
+      const [userToken, setUserToken] = useState(null);
+      const [userData, setUserData] = useState(null);
+      const [sniperConfig, setSniperConfig] = useState({
+        autoSnipeEnabled: false,
+        minLiquiditySol: 5,
+        maxBuyAmountSol: 0.5,
+        slippageBps: 500,
+        takeProfitPercentage: 200,
+        stopLossPercentage: 30,
+        rugCheckEnabled: true,
+        mevProtection: true
+      });
+      const [trades, setTrades] = useState([]);
+      const [loading, setLoading] = useState(false);
+
+      // Authenticate with backend when user logs in via Privy
+      useEffect(() => {
+        if (authenticated && user && !userToken) {
+          authenticateWithBackend();
+        }
+      }, [authenticated, user]);
+
+      // Fetch user data when we have a token
+      useEffect(() => {
+        if (userToken) {
+          fetchUserData();
+          fetchTrades();
+        }
+      }, [userToken]);
+
+      const authenticateWithBackend = async () => {
+        try {
+          setLoading(true);
+          
+          const response = await fetch(`${API_URL}/api/auth/privy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              privyUserId: user.id,
+              email: user.email?.address,
+              twitterUsername: user.twitter?.username,
+              walletAddress: wallets[0]?.address
+            })
+          });
+
+          const data = await response.json();
+          
+          if (data.success) {
+            setUserToken(data.token);
+            setUserData(data.user);
+            console.log('✅ Authenticated with backend');
+          }
+        } catch (error) {
+          console.error('Backend auth failed:', error);
+          alert('Failed to authenticate with backend');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const fetchUserData = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${userToken}`
+            }
+          });
+          const data = await response.json();
+          setUserData(data);
+        } catch (error) {
+          console.error('Failed to fetch user data:', error);
+        }
+      };
+
+      const fetchTrades = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/trading/history?limit=10`, {
+            headers: {
+              'Authorization': `Bearer ${userToken}`
+            }
+          });
+          const data = await response.json();
+          setTrades(data);
+        } catch (error) {
+          console.error('Failed to fetch trades:', error);
+        }
+      };
+
+      const toggleAutoSnipe = async () => {
+        try {
+          setLoading(true);
+          
+          const response = await fetch(`${API_URL}/api/sniper/config`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${userToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              ...sniperConfig,
+              autoSnipeEnabled: !sniperConfig.autoSnipeEnabled
+            })
+          });
+
+          const data = await response.json();
+          setSniperConfig(data);
+          
+          alert(`Auto-sniper ${data.autoSnipeEnabled ? 'ACTIVATED' : 'DEACTIVATED'}! 🎯`);
+        } catch (error) {
+          console.error('Failed to toggle auto-snipe:', error);
+          alert('Failed to update sniper config');
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      // Not ready or not authenticated
+      if (!ready || !authenticated) {
+        return (
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-12 max-w-md w-full shadow-2xl">
+              <div className="text-center mb-8">
+                <h1 className="text-5xl font-bold text-white mb-2">🎯</h1>
+                <h2 className="text-3xl font-bold text-white mb-2">
+                  Solana Sniper Bot
+                </h2>
+                <p className="text-purple-200">
+                  Auto-snipe memecoins with 1% transaction fees
+                </p>
+              </div>
+
+              {!ready ? (
+                <div className="text-center text-white">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                  <p>Loading...</p>
+                </div>
+              ) : (
+                <button
+                  onClick={login}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                >
+                  🚀 Sign in with Twitter
+                </button>
+              )}
+
+              <div className="mt-6 text-center text-sm text-purple-200">
+                Also supports: Phantom Wallet • Email
+              </div>
+
+              <div className="mt-8 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                <p className="text-green-300 text-sm">
+                  ✅ <strong>1% transaction fees only</strong><br/>
+                  ✅ No subscriptions required<br/>
+                  ✅ All fees → GeKFPYBQ5yLRcnCEdaAs93Xwji63xCSbwwibMteKqUN8
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Authenticated dashboard
+      return (
+        <div className="min-h-screen p-6">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 shadow-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    🎯 Sniper Dashboard
+                  </h1>
+                  <div className="flex items-center gap-4 text-sm">
+                    {user.twitter && (
+                      <span className="text-blue-300">
+                        🐦 @{user.twitter.username}
+                      </span>
+                    )}
+                    {wallets[0] && (
+                      <span className="text-purple-300">
+                        👛 {wallets[0].address.slice(0, 8)}...
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={logout}
+                  className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg transition"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+
+            {/* Stats */}
+            {userData && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 shadow-lg">
+                  <div className="text-purple-300 text-sm mb-1">Total Trades</div>
+                  <div className="text-3xl font-bold text-white">{userData.totalTrades}</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 shadow-lg">
+                  <div className="text-purple-300 text-sm mb-1">Volume</div>
+                  <div className="text-3xl font-bold text-white">{userData.totalVolume.toFixed(2)} SOL</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 shadow-lg">
+                  <div className="text-purple-300 text-sm mb-1">Profit</div>
+                  <div className={`text-3xl font-bold ${userData.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {userData.totalProfit >= 0 ? '+' : ''}{userData.totalProfit.toFixed(2)} SOL
+                  </div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 shadow-lg">
+                  <div className="text-purple-300 text-sm mb-1">Win Rate</div>
+                  <div className="text-3xl font-bold text-white">
+                    {userData.totalTrades > 0 ? Math.round((userData.totalProfit > 0 ? 1 : 0) * 100) : 0}%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-Sniper Control */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 mb-6 shadow-xl">
+              <h2 className="text-2xl font-bold text-white mb-4">⚡ Auto-Sniper</h2>
+              
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className="text-white font-semibold mb-1">
+                    Status: {sniperConfig.autoSnipeEnabled ? 
+                      <span className="text-green-400">🟢 ACTIVE</span> : 
+                      <span className="text-gray-400">⚫ INACTIVE</span>
+                    }
+                  </div>
+                  <div className="text-purple-200 text-sm">
+                    Monitoring Pump.fun & Raydium launches
+                  </div>
+                </div>
+                
+                <button
+                  onClick={toggleAutoSnipe}
+                  disabled={loading}
+                  className={`px-8 py-4 rounded-xl font-bold text-lg transition-all transform hover:scale-105 shadow-lg ${
+                    sniperConfig.autoSnipeEnabled
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {loading ? '⏳' : sniperConfig.autoSnipeEnabled ? '🛑 STOP' : '🚀 START'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="bg-black/20 p-3 rounded-lg">
+                  <div className="text-purple-300 mb-1">Min Liquidity</div>
+                  <div className="text-white font-semibold">{sniperConfig.minLiquiditySol} SOL</div>
+                </div>
+                <div className="bg-black/20 p-3 rounded-lg">
+                  <div className="text-purple-300 mb-1">Max Buy</div>
+                  <div className="text-white font-semibold">{sniperConfig.maxBuyAmountSol} SOL</div>
+                </div>
+                <div className="bg-black/20 p-3 rounded-lg">
+                  <div className="text-purple-300 mb-1">Slippage</div>
+                  <div className="text-white font-semibold">{(sniperConfig.slippageBps / 100).toFixed(1)}%</div>
+                </div>
+                <div className="bg-black/20 p-3 rounded-lg">
+                  <div className="text-purple-300 mb-1">Rug Check</div>
+                  <div className="text-white font-semibold">{sniperConfig.rugCheckEnabled ? '✅ ON' : '❌ OFF'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Trades */}
+            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-xl">
+              <h2 className="text-2xl font-bold text-white mb-4">📊 Recent Trades</h2>
+              
+              {trades.length === 0 ? (
+                <div className="text-center py-12 text-purple-200">
+                  <div className="text-6xl mb-4">🎯</div>
+                  <p className="text-lg">No trades yet. Activate auto-sniper to start!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {trades.map((trade, idx) => (
+                    <div key={idx} className="bg-black/20 p-4 rounded-lg flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-semibold">
+                          {trade.trade_type} • {trade.amount_sol} SOL
+                        </div>
+                        <div className="text-purple-300 text-sm">
+                          {new Date(trade.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        trade.status === 'SUCCESS' ? 'bg-green-500/20 text-green-300' :
+                        trade.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-300' :
+                        'bg-red-500/20 text-red-300'
+                      }`}>
+                        {trade.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Fee Info */}
+            <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl text-center">
+              <p className="text-purple-200">
+                💸 <strong>1% transaction fee</strong> • All fees collected to: <span className="font-mono text-xs">GeKFPYBQ5yLRcnCEdaAs93Xwji63xCSbwwibMteKqUN8</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
